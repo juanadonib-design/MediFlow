@@ -8,9 +8,10 @@ import { ZodError } from "zod";
 import {
   DocumentoClinicoEntradaSchema,
   generarDocumentoId,
+  MetadatoDocumento,
   ResultadoIngesta,
 } from "@/lib/types";
-import { persistirEnOciStub } from "@/lib/storage";
+import { persistirEnOciStub, persistirMetadatoStub } from "@/lib/storage";
 import {
   ArchivoDemasiadoGrandeError,
   FormatoNoSoportadoError,
@@ -53,6 +54,17 @@ export async function POST(request: Request) {
       nombreGuardado,
       JSON.stringify(payload),
     );
+    const recibidoEn = new Date().toISOString();
+
+    const metadato: MetadatoDocumento = {
+      documento_id: documentoId,
+      canal_origen: payload.canal_origen,
+      tipo_archivo_detectado: payload.tipo_archivo,
+      tamano_bytes: tamanoBytes,
+      recibido_en: recibidoEn,
+      nombre_original: nombreGuardado,
+    };
+    await persistirMetadatoStub(nombreGuardado, metadato);
 
     const resultado: ResultadoIngesta = {
       status: "recibido",
@@ -60,7 +72,7 @@ export async function POST(request: Request) {
       tipo_archivo_detectado: payload.tipo_archivo,
       tamano_bytes: tamanoBytes,
       canal_origen: payload.canal_origen,
-      recibido_en: new Date().toISOString(),
+      recibido_en: recibidoEn,
       ruta_objeto_temporal: rutaObjeto,
     };
 
