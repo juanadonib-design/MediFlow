@@ -22,6 +22,16 @@ export const CanalOrigen = {
 } as const;
 export type CanalOrigen = (typeof CanalOrigen)[keyof typeof CanalOrigen];
 
+const CANALES_VALIDOS = new Set<string>(Object.values(CanalOrigen));
+
+/** Valida un canal_origen recibido como texto plano (ej. desde form-data,
+ * que no pasa por un schema Zod como el JSON). Retorna el valor tipado o
+ * null si no coincide con ninguno de los canales soportados. */
+export function validarCanalOrigen(valor: string | null): CanalOrigen | null {
+  if (valor === null) return CanalOrigen.OTRO;
+  return CANALES_VALIDOS.has(valor) ? (valor as CanalOrigen) : null;
+}
+
 const DOC_ID_PATTERN = /^DOC-CLIN-\d{4}-[A-Za-z0-9]{4,}$/;
 
 export function generarDocumentoId(): string {
@@ -63,6 +73,19 @@ export interface ResultadoIngesta {
   canal_origen: CanalOrigen;
   recibido_en: string;
   ruta_objeto_temporal: string;
+}
+
+/** Metadatos básicos de entrada persistidos junto al documento (sidecar
+ * *.metadata.json) — permite que cualquier etapa posterior (clasificación,
+ * auditoría humana) sepa documento_id/canal_origen/recibido_en leyendo
+ * directamente el storage, sin depender de la respuesta HTTP original. */
+export interface MetadatoDocumento {
+  documento_id: string;
+  canal_origen: CanalOrigen;
+  tipo_archivo_detectado: TipoArchivo;
+  tamano_bytes: number;
+  recibido_en: string;
+  nombre_original: string;
 }
 
 export interface ErrorIngesta {
