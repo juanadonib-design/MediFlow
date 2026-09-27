@@ -7,8 +7,8 @@
  */
 import { NextResponse } from "next/server";
 
-import { generarDocumentoId, ResultadoIngesta } from "@/lib/types";
-import { persistirEnOciStub } from "@/lib/storage";
+import { generarDocumentoId, MetadatoDocumento, ResultadoIngesta, validarCanalOrigen } from "@/lib/types";
+import { persistirEnOciStub, persistirMetadatoStub } from "@/lib/storage";
 import {
   ArchivoDemasiadoGrandeError,
   ArchivoInconsistenteError,
@@ -45,7 +45,26 @@ export async function POST(request: Request) {
     );
   }
 
-  const canalOrigen = (formData.get("canal_origen") as string | null) ?? "Otro";
+  const canalOrigenCrudo = formData.get("canal_origen") as string | null;
+  const canalOrigen = validarCanalOrigen(canalOrigenCrudo);
+  if (canalOrigen === null) {
+    return NextResponse.json(
+      {
+        status: "rechazado",
+        detalle: `canal_origen '${canalOrigenCrudo}' no es válido.`,
+        canales_soportados: [
+          "Guardia_Emergencias",
+          "Consultorio_Externo",
+          "Laboratorio",
+          "Farmacia",
+          "Portal_Paciente",
+          "Otro",
+        ],
+      },
+      { status: 422 },
+    );
+  }
+
   const contenido = new Uint8Array(await archivo.arrayBuffer());
 
   try {
@@ -58,14 +77,25 @@ export async function POST(request: Request) {
     const documentoId = generarDocumentoId();
     const nombreGuardado = `${documentoId}_${archivo.name}`;
     const rutaObjeto = await persistirEnOciStub(nombreGuardado, contenido);
+    const recibidoEn = new Date().toISOString();
+
+    const metadato: MetadatoDocumento = {
+      documento_id: documentoId,
+      canal_origen: canalOrigen,
+      tipo_archivo_detectado: tipoDetectado,
+      tamano_bytes: tamanoBytes,
+      recibido_en: recibidoEn,
+      nombre_original: archivo.name,
+    };
+    await persistirMetadatoStub(nombreGuardado, metadato);
 
     const resultado: ResultadoIngesta = {
       status: "recibido",
       documento_id: documentoId,
       tipo_archivo_detectado: tipoDetectado,
       tamano_bytes: tamanoBytes,
-      canal_origen: canalOrigen as ResultadoIngesta["canal_origen"],
-      recibido_en: new Date().toISOString(),
+      canal_origen: canalOrigen,
+      recibido_en: recibidoEn,
       ruta_objeto_temporal: rutaObjeto,
     };
 
